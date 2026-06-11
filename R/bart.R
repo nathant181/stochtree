@@ -2916,7 +2916,35 @@ predict.bartmodel <- function(
   # Convert probabilities to classes if requested
   if (class_scale) {
     if (is_ordinal_cloglog) {
-      y_hat <- apply(mean_forest_probabilities, c(1, 3), which.max)
+      cloglog_num_categories <- object$model_params$cloglog_num_categories
+      cloglog_cutpoint_samples <- object$cloglog_cutpoint_samples
+      n_obs_pred <- nrow(X)
+      n_samp_pred <- object$model_params$num_samples
+      mean_forest_probabilities <- array(
+        NA_real_,
+        dim = c(n_obs_pred, cloglog_num_categories, n_samp_pred)
+      )
+      # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
+      # S_k = exp(-exp(gamma_k + f)), running survival product across k.
+      survival_product <- matrix(1.0, nrow = n_obs_pred, ncol = n_samp_pred)
+      for (k in seq_len(cloglog_num_categories - 1)) {
+        S_k <- exp(
+          -exp(sweep(
+            mean_forest_predictions,
+            2,
+            cloglog_cutpoint_samples[k, ],
+            "+"
+          ))
+        )
+        mean_forest_probabilities[, k, ] <- survival_product * (1 - S_k)
+        survival_product <- survival_product * S_k
+      }
+      mean_forest_probabilities[, cloglog_num_categories, ] <- survival_product
+      if (predict_y_hat) {
+        y_hat <- mean_forest_probabilities
+      }
+      mean_forest_predictions <- mean_forest_probabilities
+      y_hat <- apply(y_hat, c(1, 3), which.max)
     } else {
       y_hat <- ifelse(y_hat < 0.5, 0, 1)
     }
