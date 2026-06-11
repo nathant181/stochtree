@@ -2916,7 +2916,7 @@ predict.bartmodel <- function(
   # Convert probabilities to classes if requested
   if (class_scale) {
     if (is_ordinal_cloglog) {
-      y_hat <- apply(y_hat, c(1, 3), which.max)
+      y_hat <- apply(y_hat, 3, which.max)
     } else {
       y_hat <- ifelse(y_hat < 0.5, 0, 1)
     }
